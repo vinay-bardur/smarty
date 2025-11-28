@@ -8,8 +8,8 @@ serve(async (req) => {
   }
 
   try {
-    const user = await getUserFromRequest(req)
-    const { timetableId, optimizationType = 'all' } = await req.json()
+    const body = await req.json()
+    const { timetableId, optimizationType = 'all', time_slots } = body
 
     if (!timetableId) {
       return new Response(
@@ -18,42 +18,62 @@ serve(async (req) => {
       )
     }
 
-    const supabase = createServiceClient()
-    const isAdmin = user.role === 'service_role'
+    let timeSlots = time_slots
+    let user = null
+    let isDemo = !req.headers.get('authorization') && !req.headers.get('Authorization')
 
-    // Verify ownership (skip for admin)
-    const { data: timetable, error: timetableError } = await supabase
-      .from('timetables')
-      .select('id, user_id, name')
-      .eq('id', timetableId)
-      .single()
-
-    if (timetableError || !timetable) {
+    if (isDemo && !time_slots) {
       return new Response(
-        JSON.stringify({ error: 'Timetable not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ ok: true, demo: true, suggestions: [], summary: { total: 0 } }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (!isAdmin && timetable.user_id !== user.id) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!isDemo) {
+      user = await getUserFromRequest(req)
+      const supabase = createServiceClient()
+      const isAdmin = user.role === 'service_role'
+
+      const { data: timetable, error: timetableError } = await supabase
+        .from('timetables')
+        .select('id, user_id, name')
+        .eq('id', timetableId)
+        .single()
+
+      if (timetableError || !timetable) {
+        return new Response(
+          JSON.stringify({ error: 'Timetable not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (!isAdmin && timetable.user_id !== user.id) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { data: slots, error: slotsError } = await supabase
+        .from('time_slots')
+        .select('*')
+        .eq('timetable_id', timetableId)
+        .order('day_of_week', { ascending: true })
+        .order('start_time', { ascending: true })
+
+      if (slotsError || !slots || slots.length === 0) {
+        return new Response(
+          JSON.stringify({ error: 'No time slots found' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      timeSlots = slots
     }
 
-    // Fetch time slots
-    const { data: timeSlots, error: slotsError } = await supabase
-      .from('time_slots')
-      .select('*')
-      .eq('timetable_id', timetableId)
-      .order('day_of_week', { ascending: true })
-      .order('start_time', { ascending: true })
-
-    if (slotsError || !timeSlots || timeSlots.length === 0) {
+    if (!timeSlots || timeSlots.length === 0) {
       return new Response(
-        JSON.stringify({ error: 'No time slots found' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ ok: true, demo: isDemo, suggestions: [], summary: { total: 0 } }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -61,7 +81,6 @@ serve(async (req) => {
     
     const result = await generateOptimizations(timeSlots, optimizationType)
 
-    // Persist suggestions
     const suggestionsToInsert = result.suggestions.map(suggestion => ({
       timetable_id: timetableId,
       suggestion_type: suggestion.type,
@@ -76,28 +95,37 @@ serve(async (req) => {
       }
     }))
 
-    const { data: insertedSuggestions, error: insertError } = await supabase
-      .from('ai_suggestions')
-      .insert(suggestionsToInsert)
-      .select()
+    let insertedSuggestions = suggestionsToInsert
 
-    if (insertError) {
-      throw insertError
+    if (!isDemo) {
+      const supabase = createServiceClient()
+      const { data: suggestions, error: insertError } = await supabase
+        .from('ai_suggestions')
+        .insert(suggestionsToInsert)
+        .select()
+
+      if (insertError) {
+        throw insertError
+      }
+      insertedSuggestions = suggestions
+
+      if (user) {
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: user.id,
+            type: 'suggestions_generated',
+            title: `${insertedSuggestions.length} optimization suggestions`,
+            message: `AI has generated ${insertedSuggestions.length} ways to improve your timetable`,
+            metadata: { timetable_id: timetableId }
+          })
+      }
     }
-
-    // Send notification
-    await supabase
-      .from('notifications')
-      .insert({
-        user_id: user.id,
-        type: 'suggestions_generated',
-        title: `${insertedSuggestions.length} optimization suggestions`,
-        message: `AI has generated ${insertedSuggestions.length} ways to improve your timetable`,
-        metadata: { timetable_id: timetableId }
-      })
 
     return new Response(
       JSON.stringify({
+        ok: true,
+        demo: isDemo,
         suggestions: insertedSuggestions,
         summary: {
           total: insertedSuggestions.length,
