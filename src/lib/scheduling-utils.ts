@@ -24,7 +24,7 @@ export interface SubstitutionContext {
   progress_percent: number
 }
 
-export const deterministic TieBreaker = (
+export const deterministicTieBreaker = (
   candidates: TeacherCandidate[]
 ): TeacherCandidate[] => {
   return candidates.sort((a, b) => {
