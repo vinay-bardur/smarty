@@ -30,6 +30,11 @@ export interface OptimizationSuggestion {
 }
 
 export const detectConflicts = async (timeSlots: any[]): Promise<ConflictDetectionResult> => {
+  if (!GROQ_API_KEY) {
+    console.warn('GROQ_API_KEY not set, using local conflict detection only')
+    return { conflicts: [] }
+  }
+
   const prompt = `You are a timetable conflict detection expert. Analyze the following time slots and identify ALL conflicts.
 
 Time Slots:
@@ -58,40 +63,41 @@ Return ONLY valid JSON in this exact format:
 
 If no conflicts found, return: {"conflicts": []}`
 
-  const response = await fetch(GROQ_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a precise timetable analyzer. Always return valid JSON only.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
-    })
-  })
-
-  if (!response.ok) {
-    throw new Error(`Groq API error: ${response.statusText}`)
-  }
-
-  const data = await response.json()
-  const content = data.choices[0]?.message?.content || '{}'
-  
   try {
+    const response = await fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a precise timetable analyzer. Always return valid JSON only.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      })
+    })
+
+    if (!response.ok) {
+      console.error(`Groq API error: ${response.statusText}`)
+      return { conflicts: [] }
+    }
+
+    const data = await response.json()
+    const content = data.choices[0]?.message?.content || '{}'
+    
     return JSON.parse(content)
   } catch (e) {
-    console.error('Failed to parse Groq response:', content)
+    console.error('Groq API call failed:', e)
     return { conflicts: [] }
   }
 }
@@ -100,6 +106,11 @@ export const generateOptimizations = async (
   timeSlots: any[],
   optimizationType: string = 'all'
 ): Promise<OptimizationSuggestion> => {
+  if (!GROQ_API_KEY) {
+    console.warn('GROQ_API_KEY not set, skipping AI optimization')
+    return { suggestions: [] }
+  }
+
   const prompt = `You are a timetable optimization expert. Analyze this schedule and suggest improvements.
 
 Current Schedule:
@@ -132,40 +143,41 @@ Return ONLY valid JSON in this exact format:
   ]
 }`
 
-  const response = await fetch(GROQ_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a timetable optimization expert. Always return valid JSON only.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' }
-    })
-  })
-
-  if (!response.ok) {
-    throw new Error(`Groq API error: ${response.statusText}`)
-  }
-
-  const data = await response.json()
-  const content = data.choices[0]?.message?.content || '{}'
-  
   try {
+    const response = await fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a timetable optimization expert. Always return valid JSON only.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        response_format: { type: 'json_object' }
+      })
+    })
+
+    if (!response.ok) {
+      console.error(`Groq API error: ${response.statusText}`)
+      return { suggestions: [] }
+    }
+
+    const data = await response.json()
+    const content = data.choices[0]?.message?.content || '{}'
+    
     return JSON.parse(content)
   } catch (e) {
-    console.error('Failed to parse Groq response:', content)
+    console.error('Groq API call failed:', e)
     return { suggestions: [] }
   }
 }

@@ -19,18 +19,26 @@ serve(async (req) => {
     }
 
     const supabase = createServiceClient()
+    const isAdmin = user.role === 'service_role'
 
-    // Verify ownership
+    // Verify ownership (skip for admin)
     const { data: timetable, error: timetableError } = await supabase
       .from('timetables')
       .select('id, user_id, name')
       .eq('id', timetableId)
       .single()
 
-    if (timetableError || !timetable || timetable.user_id !== user.id) {
+    if (timetableError || !timetable) {
       return new Response(
-        JSON.stringify({ error: 'Timetable not found or unauthorized' }),
+        JSON.stringify({ error: 'Timetable not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!isAdmin && timetable.user_id !== user.id) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
