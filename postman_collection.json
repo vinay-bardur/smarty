@@ -1,0 +1,145 @@
+{
+  "info": {
+    "name": "Smarty Backend API",
+    "description": "API collection for Smarty Smart Timetable backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{supabase_user_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://kkeadoiztzjpehqpbaiv.supabase.co/functions/v1",
+      "type": "string"
+    },
+    {
+      "key": "supabase_user_token",
+      "value": "your_user_token_here",
+      "type": "string"
+    },
+    {
+      "key": "timetable_id",
+      "value": "sample-uuid-here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Conflict Detection",
+      "item": [
+        {
+          "name": "Detect Conflicts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timetableId\": \"{{timetable_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/detect-conflicts",
+              "host": ["{{base_url}}"],
+              "path": ["detect-conflicts"]
+            },
+            "description": "Analyzes timetable for conflicts using fast pre-checks and AI"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "AI Suggestions",
+      "item": [
+        {
+          "name": "Generate Optimizations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timetableId\": \"{{timetable_id}}\",\n  \"optimizationType\": \"all\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/generate-suggestions",
+              "host": ["{{base_url}}"],
+              "path": ["generate-suggestions"]
+            },
+            "description": "Generates AI-powered optimization suggestions"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Export",
+      "item": [
+        {
+          "name": "Export as CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/export-timetable?timetableId={{timetable_id}}&format=csv",
+              "host": ["{{base_url}}"],
+              "path": ["export-timetable"],
+              "query": [
+                {
+                  "key": "timetableId",
+                  "value": "{{timetable_id}}"
+                },
+                {
+                  "key": "format",
+                  "value": "csv"
+                }
+              ]
+            },
+            "description": "Exports timetable as CSV file"
+          },
+          "response": []
+        },
+        {
+          "name": "Export as ICS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/export-timetable?timetableId={{timetable_id}}&format=ics",
+              "host": ["{{base_url}}"],
+              "path": ["export-timetable"],
+              "query": [
+                {
+                  "key": "timetableId",
+                  "value": "{{timetable_id}}"
+                },
+                {
+                  "key": "format",
+                  "value": "ics"
+                }
+              ]
+            },
+            "description": "Exports timetable as ICS calendar file"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
